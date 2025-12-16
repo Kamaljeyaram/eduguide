@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "843812586508",
+    "project_id": "eduguide-3e841",
+    "storage_bucket": "eduguide-3e841.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:843812586508:android:c6c4d96937815586605a29",
+        "android_client_info": {
+          "package_name": "com.example.eduguide_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "843812586508-l2vq75u9f26r2unuiu1ku5p4rd48f480.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDerIW3VLSr0lFiMx6Wynode2NOTZVQgOY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "843812586508-l2vq75u9f26r2unuiu1ku5p4rd48f480.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
