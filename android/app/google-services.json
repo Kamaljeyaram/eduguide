@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "843812586508-iggjc43m770smm6f2ai5869ev608pgj6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.eduguide_app",
+            "certificate_hash": "9d2903f2afeada2352d9616f9093b0125d9836f1"
+          }
+        },
+        {
           "client_id": "843812586508-l2vq75u9f26r2unuiu1ku5p4rd48f480.apps.googleusercontent.com",
           "client_type": 3
         }

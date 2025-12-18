@@ -44,6 +44,10 @@ dependencies:
   printing: ^5.14.2
   path_provider: ^2.1.5
   open_file: ^3.5.10
+  
+  # HTTP and File Download
+  http: ^1.1.0
+  dio: ^5.3.2
 
 dev_dependencies:
   flutter_test:

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/groq_service.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -10,11 +11,15 @@ class ChatPage extends StatefulWidget {
 class _ChatPageState extends State<ChatPage> {
   bool _isEnglish = true;
   final TextEditingController _messageController = TextEditingController();
+  final GroqService _groqService = GroqService();
+  final ScrollController _scrollController = ScrollController();
+  bool _isLoading = false;
 
-  // Dummy messages for demonstration
+  // Initial welcome message
   final List<Map<String, dynamic>> _messages = [
     {
-      'message': 'Hello! I am your EduGuide Assistant. How can I help you with your college selection today?',
+      'message':
+          'Hello! I am your EduGuide Assistant. How can I help you with your college selection today?',
       'isUser': false,
     },
   ];
@@ -45,13 +50,13 @@ class _ChatPageState extends State<ChatPage> {
               ),
               child: Row(
                 children: [
-                   _LanguageButton(
+                  _LanguageButton(
                     text: 'English',
                     isSelected: _isEnglish,
                     onTap: () {
                       setState(() {
-                         _isEnglish = true;
-                         // Add logic to switch bot language context
+                        _isEnglish = true;
+                        _updateWelcomeMessage();
                       });
                     },
                   ),
@@ -61,7 +66,7 @@ class _ChatPageState extends State<ChatPage> {
                     onTap: () {
                       setState(() {
                         _isEnglish = false;
-                        // Add logic to switch bot language context
+                        _updateWelcomeMessage();
                       });
                     },
                   ),
@@ -72,10 +77,7 @@ class _ChatPageState extends State<ChatPage> {
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
-          child: Container(
-            color: Colors.grey[200],
-            height: 1.0,
-          ),
+          child: Container(color: Colors.grey[200], height: 1.0),
         ),
       ),
       body: Column(
@@ -83,6 +85,7 @@ class _ChatPageState extends State<ChatPage> {
           // Chat Area
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(20),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
@@ -94,7 +97,7 @@ class _ChatPageState extends State<ChatPage> {
               },
             ),
           ),
-          
+
           // Input Area
           Container(
             padding: const EdgeInsets.all(16),
@@ -120,7 +123,9 @@ class _ChatPageState extends State<ChatPage> {
                     child: TextField(
                       controller: _messageController,
                       decoration: InputDecoration(
-                        hintText: _isEnglish ? 'Type your message...' : 'உங்கள் செய்தியை தட்டச்சு செய்யவும்...',
+                        hintText: _isEnglish
+                            ? 'Type your message...'
+                            : 'உங்கள் செய்தியை தட்டச்சு செய்யவும்...',
                         border: InputBorder.none,
                         hintStyle: TextStyle(color: Colors.grey[500]),
                       ),
@@ -136,30 +141,19 @@ class _ChatPageState extends State<ChatPage> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    icon: const Icon(Icons.send_rounded, color: Colors.white),
-                    onPressed: () {
-                      if (_messageController.text.isNotEmpty) {
-                        setState(() {
-                          _messages.add({
-                            'message': _messageController.text,
-                            'isUser': true,
-                          });
-                          _messageController.clear();
-                          
-                          // Simulate bot response
-                          Future.delayed(const Duration(milliseconds: 1000), () {
-                            setState(() {
-                               _messages.add({
-                                'message': _isEnglish 
-                                    ? 'I am processing your query. Please wait...' 
-                                    : 'நான் உங்கள் கேள்வியை செயலாக்குகிறேன். காத்திருக்கவும்...',
-                                'isUser': false,
-                              });
-                            });
-                          });
-                        });
-                      }
-                    },
+                    icon: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.send_rounded, color: Colors.white),
+                    onPressed: _isLoading ? null : _sendMessage,
                   ),
                 ),
               ],
@@ -168,6 +162,84 @@ class _ChatPageState extends State<ChatPage> {
         ],
       ),
     );
+  }
+
+  void _updateWelcomeMessage() {
+    if (_messages.isNotEmpty && !_messages[0]['isUser']) {
+      setState(() {
+        _messages[0]['message'] = _isEnglish
+            ? 'Hello! I am your EduGuide Assistant. How can I help you with your college selection today?'
+            : 'வணக்கம்! நான் உங்கள் EduGuide உதவியாளர். இன்று உங்கள் கல்லூரி தேர்வில் நான் எவ்வாறு உதவ முடியும்?';
+      });
+    }
+  }
+
+  Future<void> _sendMessage() async {
+    if (_messageController.text.trim().isEmpty) return;
+
+    final userMessage = _messageController.text.trim();
+
+    // Add user message to chat
+    setState(() {
+      _messages.add({'message': userMessage, 'isUser': true});
+      _isLoading = true;
+    });
+
+    // Clear the input field
+    _messageController.clear();
+
+    // Scroll to bottom after user message
+    _scrollToBottom();
+
+    try {
+      // Get response from Groq API
+      final response = await _groqService.sendMessage(
+        userMessage,
+        isEnglish: _isEnglish,
+      );
+
+      // Add bot response to chat
+      setState(() {
+        _messages.add({'message': response, 'isUser': false});
+        _isLoading = false;
+      });
+
+      // Scroll to bottom after bot response
+      _scrollToBottom();
+    } catch (e) {
+      // Handle error by showing fallback message
+      setState(() {
+        _messages.add({
+          'message': _isEnglish
+              ? 'Sorry, I encountered an error. Please try again later.'
+              : 'மன்னிக்கவும், எனக்கு ஒரு பிழை ஏற்பட்டது. தயவுசெய்து பின்னர் மீண்டும் முயற்சிக்கவும்.',
+          'isUser': false,
+        });
+        _isLoading = false;
+      });
+
+      // Scroll to bottom after error message
+      _scrollToBottom();
+    }
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 }
 
@@ -198,7 +270,7 @@ class _LanguageButton extends StatelessWidget {
                     color: Colors.black.withOpacity(0.1),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
-                  )
+                  ),
                 ]
               : null,
         ),
@@ -219,17 +291,16 @@ class _ChatBubble extends StatelessWidget {
   final String message;
   final bool isUser;
 
-  const _ChatBubble({
-    required this.message,
-    required this.isUser,
-  });
+  const _ChatBubble({required this.message, required this.isUser});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isUser) ...[
@@ -242,7 +313,11 @@ class _ChatBubble extends StatelessWidget {
                 ),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.smart_toy_rounded, color: Colors.white, size: 18),
+              child: const Icon(
+                Icons.smart_toy_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 8),
           ],
@@ -254,8 +329,12 @@ class _ChatBubble extends StatelessWidget {
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(20),
                   topRight: const Radius.circular(20),
-                  bottomLeft: isUser ? const Radius.circular(20) : const Radius.circular(4),
-                  bottomRight: isUser ? const Radius.circular(4) : const Radius.circular(20),
+                  bottomLeft: isUser
+                      ? const Radius.circular(20)
+                      : const Radius.circular(4),
+                  bottomRight: isUser
+                      ? const Radius.circular(4)
+                      : const Radius.circular(20),
                 ),
                 boxShadow: [
                   BoxShadow(

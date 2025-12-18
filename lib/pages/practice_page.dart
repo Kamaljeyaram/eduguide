@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'question_banks_page.dart';
 
 class PracticePage extends StatelessWidget {
   const PracticePage({super.key});
@@ -33,7 +34,14 @@ class PracticePage extends StatelessWidget {
                     subtitle: 'Access past 10 years papers',
                     icon: Icons.library_books,
                     color: const Color(0xFF5C6BC0),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const QuestionBanksPage(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   _PracticeTile(
@@ -103,16 +111,17 @@ class _PracticeTile extends StatelessWidget {
         ),
         title: Text(
           title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         subtitle: Text(
           subtitle,
           style: TextStyle(color: Colors.grey[600], fontSize: 13),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.grey),
+        trailing: const Icon(
+          Icons.arrow_forward_ios_rounded,
+          size: 16,
+          color: Colors.grey,
+        ),
         onTap: onTap,
       ),
     );

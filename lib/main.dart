@@ -104,8 +104,47 @@ class EduGuideApp extends StatelessWidget {
   }
 }
 
-class GetStartedPage extends StatelessWidget {
+class GetStartedPage extends StatefulWidget {
   const GetStartedPage({super.key});
+
+  @override
+  State<GetStartedPage> createState() => _GetStartedPageState();
+}
+
+class _GetStartedPageState extends State<GetStartedPage> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeAnimation;
+  late Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    );
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+    );
+
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+    ));
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,89 +163,109 @@ class GetStartedPage extends StatelessWidget {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0),
             child: Column(
               children: [
-                const SizedBox(height: 20),
-                // App Logo/Title
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFFFFB5A7),
-                        const Color(0xFFFF9B8A),
+                const SizedBox(height: 30),
+                // App Logo with Animation
+                FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFFFFB5A7),
+                            const Color(0xFFFF9B8A),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF9B8A).withOpacity(0.4),
+                            blurRadius: 30,
+                            spreadRadius: 8,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.school_rounded,
+                        size: 60,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Title
+                FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: SlideTransition(
+                    position: _slideAnimation,
+                    child: Column(
+                      children: [
+                        Text(
+                          'EduGuide',
+                          style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFFFF6B6B),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Your Path to Success',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: Colors.grey[700],
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
                       ],
                     ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFF9B8A).withOpacity(0.4),
-                        blurRadius: 25,
-                        spreadRadius: 5,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    size: 50,
-                    color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  'EduGuide',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFFFF6B6B),
-                    letterSpacing: 1.2,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Your Path to Success',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 40),
 
-                // Features List
+                // Features List with Staggered Animation
                 Expanded(
                   child: ListView(
+                    physics: const BouncingScrollPhysics(),
                     children: [
-                      _FeatureCard(
+                      _AnimatedFeatureCard(
+                        index: 0,
+                        controller: _controller,
                         icon: Icons.location_city_rounded,
                         iconColor: const Color(0xFFFF9B8A),
-                        title: 'College Eligibility Predictor',
+                        title: 'College Predictor',
                         description:
-                            'Enter your board marks to discover eligible colleges based on previous year counselling data',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFD5CE), Color(0xFFFFE5E0)],
-                        ),
+                            'Find your dream college based on your marks and counselling history',
                       ),
-                      const SizedBox(height: 12),
-                      _FeatureCard(
+                      const SizedBox(height: 16),
+                      _AnimatedFeatureCard(
+                        index: 1,
+                        controller: _controller,
                         icon: Icons.quiz_rounded,
                         iconColor: const Color(0xFFFF8A80),
                         title: 'Offline Quizzes',
                         description:
-                            'Practice anytime, anywhere with our offline quiz feature. No internet needed!',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFCBC1), Color(0xFFFFD5CE)],
-                        ),
+                            'Practice anytime, anywhere. No internet needed for continuous learning',
                       ),
-                      const SizedBox(height: 12),
-                      _FeatureCard(
+                      const SizedBox(height: 16),
+                      _AnimatedFeatureCard(
+                        index: 2,
+                        controller: _controller,
                         icon: Icons.chat_bubble_rounded,
                         iconColor: const Color(0xFFFF7591),
-                        title: 'Native Language Chatbot',
+                        title: 'AI Assistant',
                         description:
-                            'Get personalized college and counselling guidance in your preferred regional language',
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFD5CE), Color(0xFFFFE5E0)],
-                        ),
+                            'Get personalized guidance in your preferred regional language',
                       ),
                     ],
                   ),
@@ -214,31 +273,63 @@ class GetStartedPage extends StatelessWidget {
 
                 // Get Started Button
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 20, top: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const LoginPage(),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF8A80),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        elevation: 4,
-                        shadowColor: const Color(0xFFFF8A80).withOpacity(0.5),
+                  padding: const EdgeInsets.only(bottom: 30, top: 20),
+                  child: FadeTransition(
+                    opacity: _controller.drive(
+                      CurveTween(curve: const Interval(0.6, 1.0, curve: Curves.easeOut)),
+                    ),
+                    child: ScaleTransition(
+                      scale: _controller.drive(
+                        Tween<double>(begin: 0.8, end: 1.0).chain(
+                          CurveTween(curve: const Interval(0.6, 1.0, curve: Curves.elasticOut)),
+                        ),
                       ),
-                      child: const Text(
-                        'Get Started',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              PageRouteBuilder(
+                                pageBuilder: (context, animation, secondaryAnimation) => const LoginPage(),
+                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                  var begin = const Offset(1.0, 0.0);
+                                  var end = Offset.zero;
+                                  var curve = Curves.ease;
+                                  var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                                  return SlideTransition(
+                                    position: animation.drive(tween),
+                                    child: child,
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF8A80),
+                            foregroundColor: Colors.white,
+                            elevation: 8,
+                            shadowColor: const Color(0xFFFF8A80).withOpacity(0.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Get Started',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Icon(Icons.arrow_forward_rounded),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -253,82 +344,99 @@ class GetStartedPage extends StatelessWidget {
   }
 }
 
-class _FeatureCard extends StatelessWidget {
+class _AnimatedFeatureCard extends StatelessWidget {
+  final int index;
+  final AnimationController controller;
   final IconData icon;
   final Color iconColor;
   final String title;
   final String description;
-  final Gradient gradient;
 
-  const _FeatureCard({
+  const _AnimatedFeatureCard({
+    required this.index,
+    required this.controller,
     required this.icon,
     required this.iconColor,
     required this.title,
     required this.description,
-    required this.gradient,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.08),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    // Staggered animation for list items
+    final double start = 0.2 + (index * 0.1);
+    final double end = start + 0.4;
+    
+    final animation = CurvedAnimation(
+      parent: controller,
+      curve: Interval(start, end.clamp(0.0, 1.0), curve: Curves.easeOut),
+    );
+
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.2, 0),
+          end: Offset.zero,
+        ).animate(animation),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.6),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.white.withOpacity(0.8)),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFB5A7).withOpacity(0.1),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.85),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: iconColor.withOpacity(0.2), width: 1.5),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    iconColor.withOpacity(0.2),
-                    iconColor.withOpacity(0.1),
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: iconColor.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(15),
+                child: Icon(icon, size: 26, color: iconColor),
               ),
-              child: Icon(icon, size: 28, color: iconColor),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF2D2D2D),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Color(0xFF2D2D2D),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey[700],
-                      height: 1.5,
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey[700],
+                        height: 1.4,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
