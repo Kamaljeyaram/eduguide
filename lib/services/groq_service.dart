@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 
 class GroqService {
   static const String _apiKey =
-      "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";
+      "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";
   static const String _baseUrl =
       "https://api.groq.com/openai/v1/chat/completions";
 

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'question_banks_page.dart';
+import 'online_quiz_page.dart';
+import 'ai_quiz_page.dart';
 
 class PracticePage extends StatelessWidget {
   const PracticePage({super.key});
@@ -45,11 +47,18 @@ class PracticePage extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   _PracticeTile(
-                    title: 'Offline Quizzes',
-                    subtitle: 'Practice without internet',
-                    icon: Icons.wifi_off_rounded,
+                    title: 'AI Quiz',
+                    subtitle: 'Personalized quizzes powered by AI',
+                    icon: Icons.psychology_rounded,
                     color: const Color(0xFF66BB6A),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const AIQuizPage(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   _PracticeTile(
@@ -57,7 +66,14 @@ class PracticePage extends StatelessWidget {
                     subtitle: 'Challenge your friends',
                     icon: Icons.people_rounded,
                     color: const Color(0xFFEF5350),
-                    onTap: () {},
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const OnlineQuizPage(),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
