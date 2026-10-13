@@ -1,6 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:postgres/postgres.dart';
+import 'package:http/http.dart' as http;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -15,14 +16,17 @@ class PredictPage extends StatefulWidget {
 }
 
 class _PredictPageState extends State<PredictPage> {
+  static const _supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  static const _supabaseUrl = 'https://qdrddkzidvajonwhyjol.supabase.co';
+
   final _formKey = GlobalKey<FormState>();
   final _physicsController = TextEditingController();
   final _chemistryController = TextEditingController();
   final _mathsController = TextEditingController();
-  
+
   String _selectedCategory = 'OC';
   final List<String> _categories = ['OC', 'BC', 'MBC', 'SC', 'ST'];
-  
+
   bool _isLoading = false;
   List<Map<String, dynamic>> _recommendations = [];
   double? _calculatedCutoff;
@@ -51,61 +55,84 @@ class _PredictPageState extends State<PredictPage> {
 
       // Tamil Nadu Engineering Cutoff Formula
       final cutoff = (physics + chemistry) / 2 + maths;
-      
+
       setState(() {
         _calculatedCutoff = cutoff;
       });
 
-      // Connect to Supabase Postgres
-      final connection = await Connection.open(
-        Endpoint(
-          host: 'db.qdrddkzidvajonwhyjol.supabase.co',
-          database: 'postgres',
-          username: 'postgres',
-          password: 'eduguidee20',
-        ),
-        settings: ConnectionSettings(
-          sslMode: SslMode.require,
-        ),
-      );
-
-      final catColumn = '${_selectedCategory.toLowerCase()}_cutoff';
-      
-      // Query
-      final result = await connection.execute(
-        Sql.named('''
-          SELECT college_name, department, counseling_code, $catColumn as required_cutoff 
-          FROM cutoffs 
-          WHERE $catColumn IS NOT NULL AND $catColumn <= @cutoff 
-          ORDER BY $catColumn DESC, college_name, department 
-          LIMIT 20
-        '''),
-        parameters: {'cutoff': cutoff},
-      );
-
-      final List<Map<String, dynamic>> fetched = [];
-      for (final row in result) {
-        fetched.add({
-          'college_name': row[0] as String?,
-          'department': row[1] as String?,
-          'counseling_code': row[2].toString(),
-          'required_cutoff': row[3] as double?,
-        });
+      if (_supabaseAnonKey.isEmpty) {
+        throw StateError(
+          'SUPABASE_ANON_KEY is not configured. Pass it with --dart-define.',
+        );
       }
 
+      final catColumn = switch (_selectedCategory) {
+        'OC' => 'oc_cutoff',
+        'BC' => 'bc_cutoff',
+        'MBC' => 'mbc_cutoff',
+        'SC' => 'sc_cutoff',
+        'ST' => 'st_cutoff',
+        _ => throw StateError('Unsupported category: $_selectedCategory'),
+      };
+
+      final response = await http
+          .get(
+            Uri.parse('$_supabaseUrl/rest/v1/cutoffs').replace(
+              queryParameters: {
+                'select': 'college_name,department,counseling_code,$catColumn',
+                'and':
+                    '($catColumn.not.is.null,$catColumn.lte.${cutoff.toString()})',
+                'order': '$catColumn.desc,college_name.asc,department.asc',
+                'limit': '20',
+              },
+            ),
+            headers: {
+              'apikey': _supabaseAnonKey,
+              'Authorization': 'Bearer $_supabaseAnonKey',
+            },
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode != 200) {
+        debugPrint('Supabase cutoff request failed: ${response.body}');
+        throw Exception(
+          'Cutoff service returned HTTP ${response.statusCode}. Check the '
+          'Supabase API key and SELECT row-level security policy.',
+        );
+      }
+
+      final responseData = jsonDecode(response.body);
+      if (responseData is! List) {
+        throw const FormatException(
+          'Supabase returned an invalid cutoff response.',
+        );
+      }
+
+      final fetched = responseData.map<Map<String, dynamic>>((row) {
+        if (row is! Map<String, dynamic>) {
+          throw const FormatException(
+            'Supabase returned an invalid cutoff row.',
+          );
+        }
+        final rawCutoff = row[catColumn];
+        return {
+          'college_name': row['college_name'] as String?,
+          'department': row['department'] as String?,
+          'counseling_code': row['counseling_code']?.toString() ?? '',
+          'required_cutoff': rawCutoff is num
+              ? rawCutoff.toDouble()
+              : double.tryParse(rawCutoff?.toString() ?? ''),
+        };
+      }).toList();
+
+      if (!mounted) return;
       setState(() {
         _recommendations = fetched;
       });
-
-      await connection.close();
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -122,8 +149,12 @@ class _PredictPageState extends State<PredictPage> {
       final pdf = pw.Document();
 
       // Ensure data is safe
-      final physics = _physicsController.text.isEmpty ? '0' : _physicsController.text;
-      final chemistry = _chemistryController.text.isEmpty ? '0' : _chemistryController.text;
+      final physics = _physicsController.text.isEmpty
+          ? '0'
+          : _physicsController.text;
+      final chemistry = _chemistryController.text.isEmpty
+          ? '0'
+          : _chemistryController.text;
       final maths = _mathsController.text.isEmpty ? '0' : _mathsController.text;
       final cutoffStr = _calculatedCutoff?.toStringAsFixed(2) ?? 'N/A';
       final category = _selectedCategory;
@@ -147,12 +178,18 @@ class _PredictPageState extends State<PredictPage> {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('EduGuide Report', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(
+                    'EduGuide Report',
+                    style: pw.TextStyle(
+                      fontSize: 24,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
                   pw.Text('Date: ${DateTime.now().toString().split(' ')[0]}'),
                 ],
               ),
               pw.SizedBox(height: 20),
-              
+
               // Student Details
               pw.Container(
                 padding: const pw.EdgeInsets.all(10),
@@ -163,7 +200,13 @@ class _PredictPageState extends State<PredictPage> {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('Student Marks', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      'Student Marks',
+                      style: pw.TextStyle(
+                        fontSize: 16,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
                     pw.Divider(),
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -178,17 +221,29 @@ class _PredictPageState extends State<PredictPage> {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Text('Category: $category'),
-                        pw.Text('Cutoff Key: $cutoffStr', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.blue)),
+                        pw.Text(
+                          'Cutoff Key: $cutoffStr',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            color: PdfColors.blue,
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
-              
+
               pw.SizedBox(height: 20),
-              pw.Text('Recommended Colleges', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              pw.Text(
+                'Recommended Colleges',
+                style: pw.TextStyle(
+                  fontSize: 18,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
               pw.SizedBox(height: 10),
-              
+
               if (_recommendations.isEmpty)
                 pw.Text('No colleges found for this cutoff.')
               else ...[
@@ -198,26 +253,99 @@ class _PredictPageState extends State<PredictPage> {
                   padding: const pw.EdgeInsets.all(5),
                   child: pw.Row(
                     children: [
-                      pw.Expanded(flex: 3, child: pw.Text('College Name', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
-                      pw.Expanded(flex: 2, child: pw.Text('Dept', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
-                      pw.Expanded(flex: 1, child: pw.Text('Code', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10))),
-                      pw.Expanded(flex: 1, child: pw.Text('Cutoff', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10), textAlign: pw.TextAlign.right)),
+                      pw.Expanded(
+                        flex: 3,
+                        child: pw.Text(
+                          'College Name',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 2,
+                        child: pw.Text(
+                          'Dept',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 1,
+                        child: pw.Text(
+                          'Code',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                      pw.Expanded(
+                        flex: 1,
+                        child: pw.Text(
+                          'Cutoff',
+                          style: pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                            fontSize: 10,
+                          ),
+                          textAlign: pw.TextAlign.right,
+                        ),
+                      ),
                     ],
                   ),
                 ),
                 // List Items (Flattened for better pagination)
                 ..._recommendations.map((item) {
-                   return pw.Container(
-                    padding: const pw.EdgeInsets.symmetric(vertical: 5, horizontal: 5),
+                  return pw.Container(
+                    padding: const pw.EdgeInsets.symmetric(
+                      vertical: 5,
+                      horizontal: 5,
+                    ),
                     decoration: const pw.BoxDecoration(
-                      border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5)),
+                      border: pw.Border(
+                        bottom: pw.BorderSide(
+                          color: PdfColors.grey300,
+                          width: 0.5,
+                        ),
+                      ),
                     ),
                     child: pw.Row(
                       children: [
-                        pw.Expanded(flex: 3, child: pw.Text(item['college_name']?.toString() ?? 'N/A', style: const pw.TextStyle(fontSize: 9))),
-                        pw.Expanded(flex: 2, child: pw.Text(item['department']?.toString() ?? 'N/A', style: const pw.TextStyle(fontSize: 9))),
-                        pw.Expanded(flex: 1, child: pw.Text(item['counseling_code']?.toString() ?? '-', style: const pw.TextStyle(fontSize: 9))),
-                        pw.Expanded(flex: 1, child: pw.Text(item['required_cutoff']?.toString() ?? 'N/A', style: const pw.TextStyle(fontSize: 9, color: PdfColors.green700), textAlign: pw.TextAlign.right)),
+                        pw.Expanded(
+                          flex: 3,
+                          child: pw.Text(
+                            item['college_name']?.toString() ?? 'N/A',
+                            style: const pw.TextStyle(fontSize: 9),
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 2,
+                          child: pw.Text(
+                            item['department']?.toString() ?? 'N/A',
+                            style: const pw.TextStyle(fontSize: 9),
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 1,
+                          child: pw.Text(
+                            item['counseling_code']?.toString() ?? '-',
+                            style: const pw.TextStyle(fontSize: 9),
+                          ),
+                        ),
+                        pw.Expanded(
+                          flex: 1,
+                          child: pw.Text(
+                            item['required_cutoff']?.toString() ?? 'N/A',
+                            style: const pw.TextStyle(
+                              fontSize: 9,
+                              color: PdfColors.green700,
+                            ),
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -232,7 +360,7 @@ class _PredictPageState extends State<PredictPage> {
       if (!await output.exists()) {
         await output.create(recursive: true);
       }
-      
+
       final file = File('${output.path}/EduGuide_Report.pdf');
       await file.writeAsBytes(await pdf.save());
 
@@ -289,7 +417,7 @@ class _PredictPageState extends State<PredictPage> {
                 style: TextStyle(color: Colors.grey[600]),
               ),
               const SizedBox(height: 24),
-              
+
               Form(
                 key: _formKey,
                 child: Container(
@@ -376,26 +504,29 @@ class _PredictPageState extends State<PredictPage> {
                             ),
                             elevation: 2,
                           ),
-                          child: _isLoading 
-                            ? const SizedBox(
-                                height: 20, 
-                                width: 20, 
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                              )
-                            : const Text(
-                                'Predict Colleges',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                          child: _isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text(
+                                  'Predict Colleges',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
-                              ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              
+
               if (_calculatedCutoff != null) ...[
                 const SizedBox(height: 24),
                 Container(
@@ -410,15 +541,19 @@ class _PredictPageState extends State<PredictPage> {
                         color: Colors.blue.withOpacity(0.1),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
-                      )
+                      ),
                     ],
                   ),
-                  child: Column( // Changed to column to accommodate download button nicely if needed here
+                  child: Column(
+                    // Changed to column to accommodate download button nicely if needed here
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.verified_rounded, color: Color(0xFF1976D2)),
+                          const Icon(
+                            Icons.verified_rounded,
+                            color: Color(0xFF1976D2),
+                          ),
                           const SizedBox(width: 12),
                           Text(
                             'Your Cutoff: ${_calculatedCutoff!.toStringAsFixed(2)}',
@@ -436,7 +571,7 @@ class _PredictPageState extends State<PredictPage> {
               ],
 
               const SizedBox(height: 24),
-              
+
               if (_recommendations.isNotEmpty) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -451,7 +586,10 @@ class _PredictPageState extends State<PredictPage> {
                     ),
                     IconButton(
                       onPressed: _generatePdf,
-                      icon: const Icon(Icons.picture_as_pdf_rounded, color: Color(0xFFD84315)),
+                      icon: const Icon(
+                        Icons.picture_as_pdf_rounded,
+                        color: Color(0xFFD84315),
+                      ),
                       tooltip: 'Download Report',
                     ),
                   ],
@@ -484,7 +622,10 @@ class _PredictPageState extends State<PredictPage> {
                             color: const Color(0xFFFFB5A7).withOpacity(0.15),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.school_rounded, color: Color(0xFFFF8A80)),
+                          child: const Icon(
+                            Icons.school_rounded,
+                            color: Color(0xFFFF8A80),
+                          ),
                         ),
                         title: Text(
                           college['college_name'] ?? 'Unknown College',
@@ -505,14 +646,20 @@ class _PredictPageState extends State<PredictPage> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[100],
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     'Code: ${college['counseling_code']}',
-                                    style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey[600],
+                                    ),
                                   ),
                                 ),
                                 const Spacer(),
@@ -577,9 +724,7 @@ class _PredictPageState extends State<PredictPage> {
       keyboardType: TextInputType.number,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
         fillColor: Colors.white,
         prefixIcon: Icon(icon),

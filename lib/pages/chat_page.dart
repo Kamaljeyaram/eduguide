@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../services/groq_service.dart';
 
 class ChatPage extends StatefulWidget {
@@ -207,14 +208,18 @@ class _ChatPageState extends State<ChatPage> {
       // Scroll to bottom after bot response
       _scrollToBottom();
     } catch (e) {
-      // Handle error by showing fallback message
+      debugPrint('Chat request failed: $e');
+      final errorMessage =
+          e is StateError && e.message.toString().contains('GROQ_API_KEY')
+          ? (_isEnglish
+                ? 'Chatbot is not configured. Run the app with --dart-define="GROQ_API_KEY=YOUR_NEW_KEY".'
+                : 'சாட்பாட் அமைக்கப்படவில்லை. GROQ_API_KEY உடன் செயலியை இயக்கவும்.')
+          : (_isEnglish
+                ? 'Chat request failed: $e'
+                : 'சாட் கோரிக்கை தோல்வியடைந்தது: $e');
+      if (!mounted) return;
       setState(() {
-        _messages.add({
-          'message': _isEnglish
-              ? 'Sorry, I encountered an error. Please try again later.'
-              : 'மன்னிக்கவும், எனக்கு ஒரு பிழை ஏற்பட்டது. தயவுசெய்து பின்னர் மீண்டும் முயற்சிக்கவும்.',
-          'isUser': false,
-        });
+        _messages.add({'message': errorMessage, 'isUser': false});
         _isLoading = false;
       });
 
@@ -344,14 +349,25 @@ class _ChatBubble extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: isUser ? Colors.white : const Color(0xFF2D2D2D),
-                  fontSize: 15,
-                  height: 1.4,
-                ),
-              ),
+              child: isUser
+                  ? Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        height: 1.4,
+                      ),
+                    )
+                  : MarkdownBody(
+                      data: message,
+                      styleSheet: MarkdownStyleSheet(
+                        p: const TextStyle(
+                          color: Color(0xFF2D2D2D),
+                          fontSize: 15,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
             ),
           ),
         ],
